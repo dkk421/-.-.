@@ -1,0 +1,631 @@
+#include <iostream>
+#include <vector>
+#include <random>
+#include <numeric>
+#include <tuple>
+#include <algorithm>
+#define ld long double
+
+using namespace std;
+
+class Matrix {
+public:
+    vector <vector <ld>> matrix;
+    int n, m;
+
+    /// норма 1
+    ld norm1() {
+        ld ans = 0;
+        for (int j = 0; j < m; j++) {
+            ld summ = 0;
+            for (int i = 0; i < n; i++) {
+                summ += abs(matrix[i][j]);
+            }
+            ans = max(ans, summ);
+        }
+        return ans;
+    }
+
+    ld norm2() const {
+        ld sum = 0;
+        for (int i = 0; i < n; i++) {
+            sum += matrix[i][0] * matrix[i][0]; // Этот метод предполагает, что Matrix — вектор-столбец (один столбец, m == 1)
+        }
+        return sqrt(sum);
+    }
+
+
+    /// проверка на диагональное преобладание
+    bool is_diagonal_predominance() {
+        for (int i = 0; i < n; i++) {
+            ld k = 0;
+            for (int j = 0; j < m; j++) {
+                if (i != j) {
+                    k += abs(matrix[i][j]);
+                }
+            }
+            if (abs(matrix[i][i]) < k) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    /// Обратная матрица
+    Matrix reverse() {
+        vector<vector<ld>> aug(n, vector<ld>(2 * n));
+
+        // расшир матрица [A|I]
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j)
+                aug[i][j] = matrix[i][j];
+            aug[i][n + i] = 1;
+        }
+
+        // прямой ход Гаусса
+        for (int i = 0; i < n; ++i) {
+            // нормализация строки
+            ld diag = aug[i][i];
+            if (abs(diag) < 1e-12) {
+                cerr << "Матрица вырождена" << endl;
+                exit(1);
+            }
+            for (int j = 0; j < 2 * n; ++j)
+                aug[i][j] /= diag;
+
+            // обнуление всех кроме диаг элемента
+            for (int k = 0; k < n; ++k) {
+                if (k == i) continue;
+                ld factor = aug[k][i];
+                for (int j = 0; j < 2 * n; ++j)
+                    aug[k][j] -= factor * aug[i][j];
+            }
+        }
+        vector<vector<ld>> inv(n, vector<ld>(n));
+        for (int i = 0; i < n; ++i)
+            for (int j = 0; j < n; ++j)
+                inv[i][j] = aug[i][j + n];
+
+        return Matrix(inv);
+    }
+
+
+    /// транспонирование
+    Matrix transpose() {
+        if (m == 1) {
+            vector <vector <ld>> ans(1, vector <ld>(n));
+            for (int i = 0; i < n; i++) {
+                ans[0][i] = matrix[i][0];
+            }
+            Matrix ANS(ans);
+            return ANS;
+        }
+        else {
+            vector <vector<ld>> ans(m, vector<ld>(n));
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < m; j++) {
+                    ans[j][i] = matrix[i][j];
+                }
+            }
+            Matrix ANS(ans);
+            return ANS;
+        }
+    }
+
+    Matrix() {};
+
+    Matrix(int i, int j) {
+        n = i;
+        m = j;
+        matrix.resize(n);
+        for (int k = 0; k < n; k++) {
+            matrix[k].resize(m);
+        }
+    }
+
+    Matrix(vector <ld> mx) {
+        n = mx.size();
+        m = 1;
+        matrix.resize(n);
+        for (int i = 0; i < n; i++) {
+            matrix[i] = { mx[i] };
+        }
+    }
+
+    Matrix(vector <vector <ld>> mx) {
+        matrix = mx;
+        n = matrix.size();
+        m = matrix[0].size();
+    }
+
+    Matrix(char ch, int sz) {
+        matrix.resize(sz);
+        if (ch == 'E') {
+            for (int i = 0; i < sz; i++) {
+                matrix[i].resize(sz, 0);
+                matrix[i][i] = 1;
+            }
+            n = sz;
+            m = sz;
+        }
+    }
+    Matrix(int size) : n(size), m(size), matrix(size, std::vector<ld>(size, 0)) {}
+
+    Matrix cut(int new_n) const {
+        Matrix res(new_n);
+        for (int i = 0; i < new_n; ++i) {
+            for (int j = 0; j < new_n; ++j) {
+                res.matrix[i][j] = matrix[i][j];
+            }
+        }
+        return res;
+    }
+
+    /// переопределим умножение на число (M * a)
+    Matrix operator*(const ld a) {
+        Matrix result(*this);
+        for (int i = 0; i < this->n; i++) {
+            for (int j = 0; j < this->m; j++) {
+                result.matrix[i][j] *= a;
+            }
+        }
+        return result;
+    }
+    // перегрузка оператора вывода 
+    friend std::ostream& operator<<(std::ostream& os, const Matrix& m) {
+        for (const auto& row : m.matrix) {
+            for (ld val : row) {
+                os << val << " ";
+            }
+            os << "\n";
+        }
+        return os;
+    }
+
+    /// переопределим умножение на вектор
+    vector<ld> operator*(const vector<ld>& x) {
+        if (this->m == x.size()) {
+            vector<ld> res(this->n);
+            for (int i = 0; i < this->n; ++i) {
+                res[i] = inner_product(this->matrix[i].begin(), this->matrix[i].end(), x.begin(), 0.0L);
+            }
+            return res;
+        }
+        cout << "Матрицу нельзя умножить на вектор, так как не конектятся размерности!";
+        return {};
+    }
+
+    /// переопределим матричное умножение
+    Matrix operator*(const Matrix& B) {
+        if (this->m == B.n) {
+            Matrix result(*this);
+
+            vector <vector <ld>> ans(this->n);
+            for (int ai = 0; ai < this->n; ai++) {
+                vector <ld> ans_i(B.m);
+                for (int bj = 0; bj < B.m; bj++) {
+                    ld ans_i_j = 0;
+                    for (int j = 0; j < this->m; j++) {
+                        ans_i_j += this->matrix[ai][j] * B.matrix[j][bj];
+                    }
+                    ans_i[bj] = ans_i_j;
+                }
+                ans[ai] = ans_i;
+            }
+
+            Matrix ANS(ans);
+            return ANS;
+        }
+        cout << "Матрицы нельзя перемножить, так как не соответсвуют размерности!";
+        return {};
+    }
+
+    /// переопределим сложение
+    Matrix operator+(const Matrix& B) {
+        if (n == B.n && m == B.m) {
+            Matrix result(*this);
+            for (int i = 0; i < this->n; i++) {
+                for (int j = 0; j < this->m; j++) {
+                    result.matrix[i][j] += B.matrix[i][j];
+                }
+            }
+            return result;
+        }
+        cout << "Матрицы нельзя складывать, так как не соответсвуют размерности!";
+        return {};
+    }
+
+    /// переопределим вычетание
+    Matrix operator-(const Matrix& B) {
+        if (n == B.n && m == B.m) {
+            Matrix result(*this);
+            for (int i = 0; i < this->n; i++) {
+                for (int j = 0; j < this->m; j++) {
+                    result.matrix[i][j] -= B.matrix[i][j];
+                }
+            }
+            return result;
+        }
+        cout << "Матрицы нельзя вычитать, так как не соответсвуют размерности";
+        return {};
+    }
+
+
+    std::tuple<Matrix, Matrix, Matrix> lu_decomposition() const;
+
+    std::vector<ld> solve(const std::vector<ld>& b) const;
+};
+
+
+std::vector <Matrix> generate_matrix_C_D_A(int n, int a, int b) {
+    random_device rd;
+    mt19937 gen(rd()); //(вихрь Мерсенна)
+    uniform_real_distribution<ld> dist(a, b); //Распределение `dist`
+
+    vector <vector <ld>> C_vec(n, vector <ld>(n)), D_vec(n, vector <ld>(n)); // Каждая строка создается как вектор из `n` элементов типа `ld`
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            C_vec[i][j] = dist(gen);
+            D_vec[i][j] = 0;
+            if (i == j) {
+                D_vec[i][j] = dist(gen);//D-диагональная
+            }
+        }
+    }
+    Matrix C(C_vec);
+    Matrix D(D_vec);
+    Matrix A = C.reverse() * D * C;
+    return { C, D, A };
+}
+
+
+ld SQRT(ld x, ld eps = 1e-9) {
+    // реализация бинарного поиска для извлечения корня
+    ld l = 0, r = max((ld)1, x);
+    for (int i = 0; i < 100; ++i) {
+        ld m = (l + r) / 2;
+        if (m * m < x) l = m;
+        else r = m;
+    }
+    return (l + r) / 2;
+}
+
+ld norm1(const vector<ld>& v) {
+    ld ans = 0;
+    for (ld x : v) ans += abs(x);
+    return ans;
+}
+
+ld norm2(const vector<ld>& v) {
+    ld ans = 0;
+    for (ld x : v) ans += x * x;
+    return SQRT(ans, 1e-9);
+}
+
+ld norm_inf(const vector<ld>& v) {
+    ld ans = 0;
+    for (ld x : v) ans = max(ans, abs(x)); 
+    return ans;
+}
+
+vector<ld> operator*(const vector<ld>& v, ld a) {
+    vector<ld> res = v;
+    for (ld& x : res) x *= a;
+    return res;
+}
+
+vector<ld> operator+(const vector<ld>& a, const vector<ld>& b) {
+    vector<ld> res = a;
+    for (int i = 0; i < (int)a.size(); ++i) res[i] += b[i];
+    return res;
+}
+
+vector<ld> operator-(const vector<ld>& a, const vector<ld>& b) {
+    vector<ld> res = a;
+    for (int i = 0; i < (int)a.size(); ++i) res[i] -= b[i];
+    return res;
+}
+
+
+
+/// Степенной метод
+pair<ld, vector<ld>> power_method(Matrix& A, ld delta = 1e-8, ld rtol = 1e-6) 
+{
+    vector<ld> y(A.n, 1.0);
+    vector<ld> z = y * (1.0 / norm2(y));
+    vector<ld> Lambda;
+
+    while (true) {
+        vector<ld> y_new = A * z; // A * текущее приближение вектора
+        vector<ld> z_new = y_new * (1.0 / norm2(y_new));
+
+        vector<ld> lambda_vec;
+        for (int i = 0; i < A.n; i++) {
+            if (abs(z[i]) > delta) //оценка собственного значения на текущей итерации, по компонентам
+                lambda_vec.push_back(y_new[i] / z[i]);
+        }
+
+        if (!Lambda.empty()) {
+            vector<ld> diff = lambda_vec - Lambda;
+            if (norm_inf(diff) < rtol) {
+                ld ans = 0;
+                for (ld el : lambda_vec) ans += el;
+                ans /= (ld)lambda_vec.size();
+                return { ans, z_new };
+            }
+        }
+
+        Lambda = lambda_vec;
+        y = y_new;
+        z = z_new;
+    }
+}
+
+// ф-ция LU-разложения
+tuple<Matrix, Matrix, Matrix> lu_decomposition(const Matrix& A) {
+    int n = A.n;
+    Matrix L(n, n), U = A, P('E', n);
+
+    for (int k = 0; k < n; ++k) {
+        int pivot = k;
+        for (int i = k + 1; i < n; ++i) {
+            if (abs(U.matrix[i][k]) > abs(U.matrix[pivot][k])) { // Частичный выбор ведущего элемента
+                pivot = i;
+            }
+        }
+        if (pivot != k) {
+            swap(U.matrix[k], U.matrix[pivot]);
+            swap(P.matrix[k], P.matrix[pivot]);
+            if (k > 0) {
+                swap(L.matrix[k], L.matrix[pivot]);
+            }
+        }
+        L.matrix[k][k] = 1.0;
+        for (int i = k + 1; i < n; ++i) {
+            L.matrix[i][k] = U.matrix[i][k] / U.matrix[k][k];
+            for (int j = k; j < n; ++j) {
+                U.matrix[i][j] -= L.matrix[i][k] * U.matrix[k][j];
+            }
+        }
+    }
+
+    return make_tuple(L, U, P);
+}
+
+// Ф-ция решения СЛАУ
+vector<ld> solve_system(const Matrix& A, const vector<ld>& b) {
+    auto tup = lu_decomposition(A);
+    Matrix L = std::get<0>(tup);
+    Matrix U = std::get<1>(tup);
+    Matrix P = std::get<2>(tup);
+
+    int n = A.n;
+
+    // Применяем перестановку к вектору b
+    vector<ld> Pb(n);
+    for (int i = 0; i < n; ++i) {
+        Pb[i] = inner_product(P.matrix[i].begin(), P.matrix[i].end(), b.begin(), 0.0L);
+    }
+
+    // Прямая подстановка (Ly = Pb)
+    vector<ld> y(n);
+    for (int i = 0; i < n; ++i) {
+        y[i] = Pb[i];
+        for (int j = 0; j < i; ++j) {
+            y[i] -= L.matrix[i][j] * y[j];
+        }
+        y[i] /= L.matrix[i][i];
+    }
+
+    // Обратная подстановка (Ux = y)
+    vector<ld> x(n);
+    for (int i = n - 1; i >= 0; --i) {
+        x[i] = y[i];
+        for (int j = i + 1; j < n; ++j) {
+            x[i] -= U.matrix[i][j] * x[j];
+        }
+        x[i] /= U.matrix[i][i];
+    }
+
+    return x;
+}
+
+/// Обратный степенной метод
+vector <pair <ld, vector<ld>>> inverse_power_method_with_shifts(Matrix& A, ld delta = 1e-8, ld rtol = 1e-6) //собственное значение и собственный вектор.
+{
+    vector <pair <ld, vector<ld>>> ans;
+
+    for (ld i = -10; i <= 10; i += 0.01) {
+        int reset_counter = 0;//Счётчик неудачных итераций — если слишком много, мы выходим из цикла
+        vector<ld> y(vector<ld>(A.n, 1)); //единичный вектор длины n - начальное приблиэение
+        ld sigma = i;
+        vector<ld> z = y;
+        ld norm_z = norm2(z);
+        for (ld& val : z) val /= norm_z;
+
+        while (true) {
+            Matrix sigmaE('E', A.n);
+            sigmaE = sigmaE * sigma;
+            vector<ld> y_new = solve_system(A - sigmaE, z); //тут я решаю слау 
+            vector<ld> z_new = y_new * (1 / norm2(y_new));
+
+            ld nu = 0, count = 0;
+            for (int j = 0; j < A.n; j++) {
+                if (abs(y_new[j]) > delta) {
+                    nu += z[j] / y_new[j]; //приближение собственных значений через обратную Релея оценку
+                    count++;
+                }
+            }
+            nu /= count; //Усредняем по всем подходящим индексам
+
+            ld sigma_new = sigma + nu; //Обновляем приближение к собственному значению
+            if (abs(nu) < rtol && norm_inf(z_new - z) < rtol) {
+                bool flag = true;
+                for (auto el : ans) {
+                    if (abs(el.first - sigma_new) <= 10 * rtol) {
+                        flag = false;
+                    }
+                }
+                if (flag) {
+                    ans.emplace_back(sigma_new, z_new);
+                    if (ans.size() == A.n) {
+                        return ans;
+                    }
+                }
+                break;
+            }
+            else {
+                reset_counter++;
+                if (reset_counter == 1e3) {
+                    break; //нет сходимости метода
+                }
+            }
+            sigma = sigma_new;
+            y = y_new;
+            z = z_new;
+        }
+    }
+
+    return ans;
+}
+
+std::ostream& operator<<(std::ostream& os, const std::vector<ld>& vec) {
+    for (ld val : vec) {
+        os << val << " ";
+    }
+    return os;
+}
+
+const ld EPS = 1e-10;
+const int MAX_ITERS = 1000;
+
+/// вращение Гивенса, зануляющего элемент [i][j]
+Matrix create_T_i_j(const Matrix& A, int i, int j) {
+    Matrix G('E', A.n);
+    ld x = A.matrix[j][j];
+    ld y = A.matrix[i][j];
+    ld r = sqrt(x * x + y * y);
+    if (r < EPS) return G;
+    ld c = x / r;
+    ld s = -y / r;
+    G.matrix[i][i] = c;
+    G.matrix[j][j] = c;
+    G.matrix[i][j] = s;
+    G.matrix[j][i] = -s;
+    return G;
+}
+
+/// к форме Хессенберга
+Matrix toHessenberg(Matrix A) {
+    int n = A.n;
+    for (int k = 0; k < n - 2; k++) {
+        for (int i = n - 1; i > k + 1; i--) {
+            Matrix G = create_T_i_j(A, i, i - 1);
+            A = G * A * G.transpose();
+        }
+    }
+    return A;
+}
+
+/// QR-алгоритм со сдвигами
+std::vector<ld> QR_algorithm(Matrix A, ld epsilon = 1e-10) {
+    std::vector<ld> eigenvalues;
+    A = toHessenberg(A); // Приведение к форме Хессенберга
+    int n = A.n;
+
+    while (n > 1) {
+        int iter = 0;
+        while (std::abs(A.matrix[n - 1][n - 2]) > epsilon && iter < MAX_ITERS) {
+
+            ld d = (A.matrix[n - 2][n - 2] - A.matrix[n - 1][n - 1]) / 2.0;
+            ld mu = A.matrix[n - 1][n - 1] - std::copysign(1.0, d) *
+                A.matrix[n - 1][n - 2] * A.matrix[n - 1][n - 2] /
+                (std::abs(d) + sqrt(d * d + A.matrix[n - 1][n - 2] * A.matrix[n - 1][n - 2]));
+
+            Matrix E('E', n);
+            Matrix A_shifted = A.cut(n) - E * mu;
+
+            Matrix Q('E', n);
+            Matrix R = A_shifted;
+
+            for (int i = 1; i < n; i++) {
+                Matrix G = create_T_i_j(R, i, i - 1);
+                R = G * R;
+                Q = Q * G.transpose();
+            }
+
+            A = R * Q + E * mu;
+            iter++;
+        }
+
+        if (iter == MAX_ITERS) {
+            std::cerr << "QR did not converge for size " << n << "\n";
+            break;
+        }
+
+        // Последняя строка обнуляется те нашли собственное значение
+        eigenvalues.push_back(A.matrix[n - 1][n - 1]);
+        A = A.cut(n - 1); // Уменьшаем размер
+        n--;
+    }
+
+    // Остался последний элемент на диагонали
+    if (n == 1) {
+        eigenvalues.push_back(A.matrix[0][0]);
+    }
+
+    std::reverse(eigenvalues.begin(), eigenvalues.end());
+    return eigenvalues;
+}
+
+int main()
+{
+	int n, a, b;
+    std::cin >> n >> a >> b;
+
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_real_distribution<ld> dist(a, b);
+
+    vector <vector <ld>> C_vec(n, vector <ld>(n)), D_vec(n, vector <ld>(n));
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            C_vec[i][j] = dist(gen);
+            D_vec[i][j] = 0;
+            if (i == j) {
+                D_vec[i][j] = dist(gen);
+            }
+        }
+    }
+    Matrix C(C_vec);
+    Matrix D(D_vec);
+    Matrix A = C.reverse() * D * C;
+
+    // степенной метод
+    pair <ld, vector <ld>> PM_absmax_lambda = power_method(A);
+    cout << "Power Method:\n" << PM_absmax_lambda.first << '\n' << PM_absmax_lambda.second << '\n';
+    cout << "Check (print Ax and lambda * x):\n";
+    cout << (A * PM_absmax_lambda.second) << '\n' << (PM_absmax_lambda.second * PM_absmax_lambda.first) << '\n';
+    cout << '\n';
+
+    // обратный степенной метод со сдвигами
+    vector <pair <ld, vector <ld>>> inverse_PM = inverse_power_method_with_shifts(A);
+    cout << "Inverse Power Method:\n";
+    for (auto el : inverse_PM) {
+        cout << el.first << '\n' << el.second << '\n';
+        cout << "Check (print Ax and lambda * x):\n";
+        cout << (A * el.second) << '\n' << (el.second * el.first) << '\n';
+        cout << '\n';
+    }
+    cout << '\n';
+
+    // QR алгоритм
+    cout << "QR algorithm:\n";
+    cout << "Matrix D\n" << D << '\n';
+    Matrix HA = toHessenberg(A);
+    for (ld el : QR_algorithm(HA)) {
+        cout << el << '\n';
+    }
+    
+}
